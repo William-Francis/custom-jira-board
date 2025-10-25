@@ -1,0 +1,398 @@
+/* Performance Monitor Styles */
+.performance-monitor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.performance-monitor__overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.performance-monitor__content {
+  position: relative;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  z-index: 1;
+}
+
+/* Header */
+.performance-monitor__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--border-primary);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.performance-monitor__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.performance-monitor__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.performance-monitor__action {
+  background: none;
+  border: none;
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all var(--transition-fast) ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+}
+
+.performance-monitor__action:hover {
+  background-color: var(--bg-hover);
+}
+
+.performance-monitor__action--recording {
+  background-color: var(--color-error);
+  color: var(--text-on-primary);
+}
+
+.performance-monitor__action--recording:hover {
+  background-color: var(--color-error-dark);
+}
+
+/* Performance Score */
+.performance-monitor__score {
+  padding: var(--spacing-xl);
+  display: flex;
+  justify-content: center;
+}
+
+.performance-monitor__score-circle {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background-color: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.performance-monitor__score-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--color-primary) 0deg,
+    var(--bg-tertiary) 0deg
+  );
+}
+
+.performance-monitor__score-text {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.performance-monitor__score-value {
+  display: block;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.performance-monitor__score-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-top: var(--spacing-xs);
+}
+
+/* Metrics Grid */
+.performance-monitor__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--spacing-md);
+  padding: 0 var(--spacing-lg) var(--spacing-lg);
+}
+
+.performance-monitor__metric {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  text-align: center;
+}
+
+.performance-monitor__metric-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.performance-monitor__metric-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Detailed Metrics */
+.performance-monitor__detailed {
+  padding: 0 var(--spacing-lg) var(--spacing-lg);
+}
+
+.performance-monitor__detailed-title {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.performance-monitor__detailed-list {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.performance-monitor__detailed-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.performance-monitor__detailed-item:last-child {
+  border-bottom: none;
+}
+
+.performance-monitor__detailed-time {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.performance-monitor__detailed-values {
+  display: flex;
+  gap: var(--spacing-md);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.performance-monitor__detailed-values span {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+/* Suggestions */
+.performance-monitor__suggestions {
+  padding: 0 var(--spacing-lg) var(--spacing-lg);
+}
+
+.performance-monitor__suggestions-title {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.performance-monitor__suggestions-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.performance-monitor__suggestion {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.performance-monitor__suggestion--success {
+  background-color: var(--color-success-light);
+  color: var(--color-success-dark);
+  border: 1px solid var(--color-success);
+}
+
+.performance-monitor__suggestion--warning {
+  background-color: var(--color-warning-light);
+  color: var(--color-warning-dark);
+  border: 1px solid var(--color-warning);
+}
+
+.performance-monitor__suggestion--info {
+  background-color: var(--color-info-light);
+  color: var(--color-info-dark);
+  border: 1px solid var(--color-info);
+}
+
+/* Footer */
+.performance-monitor__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-top: 1px solid var(--border-primary);
+  background-color: var(--bg-secondary);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.performance-monitor__status {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.performance-monitor__status--recording {
+  color: var(--color-error);
+}
+
+.performance-monitor__status--stopped {
+  color: var(--text-secondary);
+}
+
+.performance-monitor__timestamp {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .performance-monitor__content {
+    width: 95%;
+    margin: var(--spacing-md);
+  }
+
+  .performance-monitor__header {
+    padding: var(--spacing-md);
+  }
+
+  .performance-monitor__title {
+    font-size: 1.125rem;
+  }
+
+  .performance-monitor__score {
+    padding: var(--spacing-lg);
+  }
+
+  .performance-monitor__score-circle {
+    width: 100px;
+    height: 100px;
+  }
+
+  .performance-monitor__score-value {
+    font-size: 1.75rem;
+  }
+
+  .performance-monitor__metrics {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-sm);
+    padding: 0 var(--spacing-md) var(--spacing-md);
+  }
+
+  .performance-monitor__metric {
+    padding: var(--spacing-sm);
+  }
+
+  .performance-monitor__detailed,
+  .performance-monitor__suggestions {
+    padding: 0 var(--spacing-md) var(--spacing-md);
+  }
+
+  .performance-monitor__detailed-values {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .performance-monitor__footer {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    text-align: center;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .performance-monitor__content {
+    border-width: 2px;
+  }
+
+  .performance-monitor__metric {
+    border-width: 2px;
+  }
+
+  .performance-monitor__suggestion {
+    border-width: 2px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .performance-monitor__action {
+    transition: none;
+  }
+
+  .performance-monitor__overlay {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .performance-monitor__suggestion--success {
+    background-color: rgba(54, 179, 126, 0.1);
+  }
+
+  .performance-monitor__suggestion--warning {
+    background-color: rgba(255, 171, 0, 0.1);
+  }
+
+  .performance-monitor__suggestion--info {
+    background-color: rgba(0, 101, 255, 0.1);
+  }
+}
+
+/* Print styles */
+@media print {
+  .performance-monitor {
+    display: none;
+  }
+}

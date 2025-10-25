@@ -1,0 +1,229 @@
+/* Button Component Styles */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* Button Sizes */
+.btn--sm {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.75rem;
+  line-height: 1.25;
+  min-height: 2rem;
+}
+
+.btn--md {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  min-height: 2.5rem;
+}
+
+.btn--lg {
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-size: 1rem;
+  line-height: 1.5;
+  min-height: 3rem;
+}
+
+/* Button Variants */
+.btn--primary {
+  background-color: var(--color-primary);
+  color: var(--text-inverse);
+  border-color: var(--color-primary);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.btn--primary:active:not(:disabled) {
+  background-color: var(--color-primary);
+  transform: translateY(1px);
+}
+
+.btn--secondary {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border-primary);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  border-color: var(--border-secondary);
+}
+
+.btn--secondary:active:not(:disabled) {
+  background-color: var(--bg-active);
+  transform: translateY(1px);
+}
+
+.btn--danger {
+  background-color: var(--color-error);
+  color: var(--text-inverse);
+  border-color: var(--color-error);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background-color: #e53e3e;
+  border-color: #e53e3e;
+}
+
+.btn--danger:active:not(:disabled) {
+  background-color: var(--color-error);
+  transform: translateY(1px);
+}
+
+.btn--ghost {
+  background-color: transparent;
+  color: var(--text-primary);
+  border-color: transparent;
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btn--ghost:active:not(:disabled) {
+  background-color: var(--bg-active);
+  transform: translateY(1px);
+}
+
+.btn--link {
+  background-color: transparent;
+  color: var(--color-primary);
+  border-color: transparent;
+  text-decoration: underline;
+  padding: 0;
+  min-height: auto;
+}
+
+.btn--link:hover:not(:disabled) {
+  color: var(--color-primary-hover);
+  text-decoration: none;
+}
+
+.btn--link:active:not(:disabled) {
+  color: var(--color-primary);
+}
+
+/* Button States */
+.btn--disabled,
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn--loading {
+  cursor: wait;
+  pointer-events: none;
+}
+
+/* Loading Spinner */
+.btn__spinner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 1rem;
+  height: 1rem;
+}
+
+.btn__spinner-icon {
+  width: 100%;
+  height: 100%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.btn__content--loading {
+  opacity: 0;
+}
+
+.btn__content {
+  transition: opacity var(--transition-fast);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .btn--sm {
+    padding: var(--spacing-xs);
+    font-size: 0.75rem;
+    min-height: 1.75rem;
+  }
+
+  .btn--md {
+    padding: var(--spacing-sm);
+    font-size: 0.875rem;
+    min-height: 2.25rem;
+  }
+
+  .btn--lg {
+    padding: var(--spacing-md);
+    font-size: 1rem;
+    min-height: 2.75rem;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .btn {
+    border-width: 2px;
+  }
+
+  .btn--primary {
+    background-color: ButtonText;
+    color: ButtonFace;
+  }
+
+  .btn--secondary {
+    background-color: ButtonFace;
+    color: ButtonText;
+    border-color: ButtonText;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .btn {
+    transition: none;
+  }
+
+  .btn__spinner-icon {
+    animation: none;
+  }
+
+  .btn:active:not(:disabled) {
+    transform: none;
+  }
+}

@@ -1,0 +1,247 @@
+/* Keyboard Shortcut Indicator Styles */
+.keyboard-shortcut-indicator {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+/* Position variants */
+.keyboard-shortcut-indicator--top-left {
+  top: var(--spacing-lg);
+  left: var(--spacing-lg);
+}
+
+.keyboard-shortcut-indicator--top-right {
+  top: var(--spacing-lg);
+  right: var(--spacing-lg);
+}
+
+.keyboard-shortcut-indicator--bottom-left {
+  bottom: var(--spacing-lg);
+  left: var(--spacing-lg);
+}
+
+.keyboard-shortcut-indicator--bottom-right {
+  bottom: var(--spacing-lg);
+  right: var(--spacing-lg);
+}
+
+/* Toggle Button */
+.keyboard-shortcut-indicator__toggle {
+  background-color: var(--color-primary);
+  color: var(--text-on-primary);
+  border: none;
+  border-radius: var(--radius-full);
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  transition: all var(--transition-fast) ease-in-out;
+  position: relative;
+}
+
+.keyboard-shortcut-indicator__toggle:hover {
+  background-color: var(--color-primary-dark);
+  transform: scale(1.05);
+}
+
+.keyboard-shortcut-indicator__toggle:active {
+  transform: scale(0.95);
+}
+
+.keyboard-shortcut-indicator__count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background-color: var(--color-error);
+  color: var(--text-on-primary);
+  border-radius: var(--radius-full);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 2px solid var(--bg-primary);
+}
+
+/* Shortcuts List */
+.keyboard-shortcut-indicator__list {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  margin-bottom: var(--spacing-sm);
+  min-width: 300px;
+  max-width: 400px;
+  max-height: 400px;
+  overflow: hidden;
+  animation: slideUp 0.2s ease-out;
+}
+
+.keyboard-shortcut-indicator--expanded .keyboard-shortcut-indicator__list {
+  display: block;
+}
+
+/* Header */
+.keyboard-shortcut-indicator__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--border-primary);
+  background-color: var(--bg-secondary);
+}
+
+.keyboard-shortcut-indicator__header h4 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.keyboard-shortcut-indicator__close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast) ease-in-out;
+}
+
+.keyboard-shortcut-indicator__close:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Shortcuts */
+.keyboard-shortcut-indicator__shortcuts {
+  padding: var(--spacing-sm);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.keyboard-shortcut-indicator__shortcut {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast) ease-in-out;
+}
+
+.keyboard-shortcut-indicator__shortcut:hover {
+  background-color: var(--bg-hover);
+}
+
+.keyboard-shortcut-indicator__key {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  min-width: 60px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.keyboard-shortcut-indicator__description {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+/* Animations */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .keyboard-shortcut-indicator {
+    position: fixed;
+    bottom: var(--spacing-md);
+    right: var(--spacing-md);
+  }
+
+  .keyboard-shortcut-indicator--top-left,
+  .keyboard-shortcut-indicator--top-right,
+  .keyboard-shortcut-indicator--bottom-left {
+    bottom: var(--spacing-md);
+    right: var(--spacing-md);
+  }
+
+  .keyboard-shortcut-indicator__list {
+    min-width: 280px;
+    max-width: calc(100vw - 2 * var(--spacing-md));
+  }
+
+  .keyboard-shortcut-indicator__toggle {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* Focus styles */
+.keyboard-shortcut-indicator__toggle:focus,
+.keyboard-shortcut-indicator__close:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .keyboard-shortcut-indicator__key {
+    border-width: 2px;
+  }
+  
+  .keyboard-shortcut-indicator__list {
+    border-width: 2px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .keyboard-shortcut-indicator__list {
+    animation: none;
+  }
+  
+  .keyboard-shortcut-indicator__toggle,
+  .keyboard-shortcut-indicator__shortcut,
+  .keyboard-shortcut-indicator__close {
+    transition: none;
+  }
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .keyboard-shortcut-indicator__key {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-secondary);
+  }
+}
+
+/* Print styles */
+@media print {
+  .keyboard-shortcut-indicator {
+    display: none;
+  }
+}
