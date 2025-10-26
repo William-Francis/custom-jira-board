@@ -351,7 +351,7 @@ export const Ticket: React.FC<ExtendedTicketProps> = ({
 
       {/* Updated Time */}
       <div className='ticket__updated'>
-        {formatRelativeTime(ticket.updated)}
+        {formatRelativeTime(ticket.updatedAt || ticket.updated || new Date())}
       </div>
     </div>
   );

@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Button,
-  Modal,
   ErrorBoundary,
   Board,
   KeyboardShortcutsHelp,
   KeyboardShortcutIndicator,
   NotificationPanel,
   NotificationBell,
-  VirtualizedTicketList,
   PerformanceMonitorComponent,
+  Modal,
+  EpicsPanel,
 } from './components';
 import {
   useErrorHandler,
@@ -17,18 +16,40 @@ import {
   useRealtime,
   usePerformance,
 } from './hooks';
-import { initializeEnvConfig } from './config/env';
+import { initializeEnvConfig, envConfig } from './config/env';
+import { Sprint } from './types';
+import { boardService } from './services';
 
 const App: React.FC = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
   const [isPerformanceMonitorOpen, setIsPerformanceMonitorOpen] =
     useState(false);
+  const [sprint, setSprint] = useState<Sprint | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [isTicketDetailsOpen, setIsTicketDetailsOpen] = useState(false);
+  const [isEpicsViewOpen, setIsEpicsViewOpen] = useState(false);
+  const [sprintTickets, setSprintTickets] = useState<any[]>([]);
 
   // Initialize environment configuration
   useEffect(() => {
     initializeEnvConfig();
+  }, []);
+
+  // Fetch active sprint details
+  useEffect(() => {
+    const fetchSprint = async () => {
+      try {
+        if (envConfig.jiraBoardId) {
+          const activeSprint = await boardService.getActiveSprint(
+            envConfig.jiraBoardId
+          );
+          setSprint(activeSprint);
+        }
+      } catch (error) {
+        console.log('Could not fetch sprint details:', error);
+      }
+    };
+    fetchSprint();
   }, []);
 
   // Initialize error handler
@@ -85,14 +106,6 @@ const App: React.FC = () => {
     },
   });
 
-  const handleButtonClick = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsModalOpen(true);
-    }, 2000);
-  };
-
   const handleTicketEdit = (ticket: any) => {
     console.log('Edit ticket:', ticket);
   };
@@ -102,7 +115,8 @@ const App: React.FC = () => {
   };
 
   const handleTicketView = (ticket: any) => {
-    console.log('View ticket:', ticket);
+    setSelectedTicket(ticket);
+    setIsTicketDetailsOpen(true);
   };
 
   const handleTicketAdd = (status: any) => {
@@ -121,6 +135,10 @@ const App: React.FC = () => {
     setIsPerformanceMonitorOpen(!isPerformanceMonitorOpen);
   };
 
+  const handleTicketsChange = (tickets: any[]) => {
+    setSprintTickets(tickets);
+  };
+
   return (
     <ErrorBoundary>
       <div className='app'>
@@ -130,6 +148,14 @@ const App: React.FC = () => {
             <p>Active Sprint Board with Enhanced Features</p>
           </div>
           <div className='app-header__actions'>
+            <button
+              type='button'
+              className='app-header__action'
+              onClick={() => setIsEpicsViewOpen(true)}
+              title='View Sprint Epics'
+            >
+              📚
+            </button>
             <button
               type='button'
               className='app-header__action'
@@ -148,64 +174,37 @@ const App: React.FC = () => {
         <main className='app-main'>
           <div className='demo-section'>
             <h2>
-              Phase 5.5 Complete: Performance Optimizations and Virtualization
+              {sprint ? `${sprint.name} - Active Sprint` : 'Jira Board'}
+              {sprint?.goal && (
+                <span
+                  style={{
+                    fontSize: '0.8em',
+                    color: '#666',
+                    display: 'block',
+                    marginTop: '0.5em',
+                  }}
+                >
+                  Goal: {sprint.goal}
+                </span>
+              )}
             </h2>
             <p>
-              Successfully implemented comprehensive performance optimizations,
-              virtual scrolling, and advanced caching strategies for optimal
-              user experience.
+              {sprint
+                ? `Viewing ${sprint.name} sprint with live updates from Jira. Drag tickets between columns to update their status.`
+                : 'Successfully implemented live Jira integration with drag-and-drop functionality.'}
             </p>
-
-            <div className='demo-controls'>
-              <Button
-                variant='primary'
-                onClick={handleButtonClick}
-                loading={isLoading}
-                disabled={isLoading}
-              >
-                {isLoading ? 'Loading...' : 'Test Components'}
-              </Button>
-
-              <Button
-                variant='secondary'
-                onClick={() => setIsModalOpen(true)}
-                disabled={isLoading}
-              >
-                Open Modal
-              </Button>
-            </div>
 
             {/* Board Component */}
             <div className='board-container'>
               <Board
-                boardId='board-1'
+                boardId={envConfig.jiraBoardId || 'board-1'}
                 onTicketEdit={handleTicketEdit}
                 onTicketDelete={handleTicketDelete}
                 onTicketView={handleTicketView}
                 onTicketAdd={handleTicketAdd}
+                onTicketsChange={handleTicketsChange}
                 showAddButtons={true}
                 autoRefresh={false}
-              />
-            </div>
-
-            {/* Virtualized Ticket List Demo */}
-            <div className='virtualized-demo'>
-              <h3>Virtualized Ticket List (Performance Demo)</h3>
-              <p>
-                This demonstrates virtual scrolling for handling large datasets
-                efficiently. Only visible items are rendered, improving
-                performance significantly.
-              </p>
-              <VirtualizedTicketList
-                tickets={[]} // This would be populated with actual tickets
-                onTicketClick={handleTicketView}
-                onTicketEdit={handleTicketEdit}
-                onTicketDelete={handleTicketDelete}
-                itemHeight={120}
-                containerHeight={400}
-                overscan={5}
-                showVirtualizationInfo={true}
-                enableSmoothScrolling={true}
               />
             </div>
 
@@ -232,42 +231,6 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
-
-          <Modal
-            isOpen={isModalOpen}
-            onClose={() => setIsModalOpen(false)}
-            title='Phase 5.5 Complete: Performance Optimizations and Virtualization'
-            size='md'
-          >
-            <p>
-              Successfully implemented comprehensive performance optimizations,
-              virtual scrolling, and advanced caching strategies for optimal
-              user experience.
-            </p>
-            <p>Features implemented:</p>
-            <ul>
-              <li>✅ Performance monitoring and metrics tracking</li>
-              <li>✅ Virtual scrolling for large datasets</li>
-              <li>✅ Advanced caching strategies</li>
-              <li>✅ Lazy loading components and images</li>
-              <li>✅ Memory usage optimization</li>
-              <li>✅ Bundle size optimization</li>
-              <li>✅ Real-time performance alerts</li>
-              <li>✅ Performance optimization suggestions</li>
-            </ul>
-            <div
-              style={{
-                marginTop: '1rem',
-                display: 'flex',
-                gap: '0.5rem',
-                justifyContent: 'flex-end',
-              }}
-            >
-              <Button variant='secondary' onClick={() => setIsModalOpen(false)}>
-                Close
-              </Button>
-            </div>
-          </Modal>
         </main>
 
         {/* Keyboard Shortcuts Help */}
@@ -305,6 +268,223 @@ const App: React.FC = () => {
           showDetailedMetrics={true}
           enableAlerts={true}
         />
+
+        {/* Epics Panel */}
+        <EpicsPanel
+          tickets={sprintTickets}
+          isOpen={isEpicsViewOpen}
+          onClose={() => setIsEpicsViewOpen(false)}
+        />
+
+        {/* Ticket Details Modal */}
+        {selectedTicket && (
+          <Modal
+            isOpen={isTicketDetailsOpen}
+            onClose={() => setIsTicketDetailsOpen(false)}
+            title={`${selectedTicket.key}: ${selectedTicket.title}`}
+            size='lg'
+          >
+            <div style={{ padding: '1rem' }}>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <h3
+                  style={{
+                    fontSize: '0.9em',
+                    color: '#666',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  Description
+                </h3>
+                <p style={{ margin: 0 }}>
+                  {selectedTicket.description || 'No description provided'}
+                </p>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: '1rem',
+                  marginBottom: '1.5rem',
+                }}
+              >
+                <div>
+                  <h4
+                    style={{
+                      fontSize: '0.85em',
+                      color: '#666',
+                      marginBottom: '0.25rem',
+                    }}
+                  >
+                    Status
+                  </h4>
+                  <span
+                    style={{
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '4px',
+                      fontSize: '0.9em',
+                      background: '#e8f5e9',
+                      color: '#2e7d32',
+                    }}
+                  >
+                    {selectedTicket.status}
+                  </span>
+                </div>
+                <div>
+                  <h4
+                    style={{
+                      fontSize: '0.85em',
+                      color: '#666',
+                      marginBottom: '0.25rem',
+                    }}
+                  >
+                    Priority
+                  </h4>
+                  <span
+                    style={{
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '4px',
+                      fontSize: '0.9em',
+                      background: '#fff3e0',
+                      color: '#e65100',
+                    }}
+                  >
+                    {selectedTicket.priority}
+                  </span>
+                </div>
+                <div>
+                  <h4
+                    style={{
+                      fontSize: '0.85em',
+                      color: '#666',
+                      marginBottom: '0.25rem',
+                    }}
+                  >
+                    Issue Type
+                  </h4>
+                  <p style={{ margin: 0 }}>
+                    {selectedTicket.issueType || 'Task'}
+                  </p>
+                </div>
+                <div>
+                  <h4
+                    style={{
+                      fontSize: '0.85em',
+                      color: '#666',
+                      marginBottom: '0.25rem',
+                    }}
+                  >
+                    Created
+                  </h4>
+                  <p style={{ margin: 0 }}>
+                    {selectedTicket.createdAt
+                      ? new Date(selectedTicket.createdAt).toLocaleDateString()
+                      : 'Unknown'}
+                  </p>
+                </div>
+              </div>
+
+              {selectedTicket.assignee && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <h4
+                    style={{
+                      fontSize: '0.85em',
+                      color: '#666',
+                      marginBottom: '0.5rem',
+                    }}
+                  >
+                    Assignee
+                  </h4>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    {selectedTicket.assignee.avatarUrl && (
+                      <img
+                        src={selectedTicket.assignee.avatarUrl}
+                        alt={selectedTicket.assignee.name}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                        }}
+                      />
+                    )}
+                    <div>
+                      <p style={{ margin: 0, fontWeight: 'bold' }}>
+                        {selectedTicket.assignee.name}
+                      </p>
+                      <p
+                        style={{ margin: 0, fontSize: '0.85em', color: '#666' }}
+                      >
+                        {selectedTicket.assignee.email}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedTicket.labels && selectedTicket.labels.length > 0 && (
+                <div>
+                  <h4
+                    style={{
+                      fontSize: '0.85em',
+                      color: '#666',
+                      marginBottom: '0.5rem',
+                    }}
+                  >
+                    Labels
+                  </h4>
+                  <div
+                    style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}
+                  >
+                    {selectedTicket.labels.map(
+                      (label: string, index: number) => (
+                        <span
+                          key={index}
+                          style={{
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '12px',
+                            fontSize: '0.85em',
+                            background: '#e3f2fd',
+                            color: '#1976d2',
+                          }}
+                        >
+                          {label}
+                        </span>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div
+                style={{
+                  marginTop: '1.5rem',
+                  display: 'flex',
+                  gap: '0.5rem',
+                  justifyContent: 'flex-end',
+                }}
+              >
+                <button
+                  onClick={() => setIsTicketDetailsOpen(false)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    borderRadius: '4px',
+                    border: '1px solid #ddd',
+                    background: 'white',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
       </div>
     </ErrorBoundary>
   );

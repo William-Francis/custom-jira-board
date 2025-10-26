@@ -26,3 +26,6 @@ export * from './notifications';
 
 // Performance Components
 export * from './performance';
+
+// Epics Components
+export * from './epics';

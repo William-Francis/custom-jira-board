@@ -114,30 +114,48 @@ export const formatDate = (date: Date): string => {
 /**
  * Format relative time
  */
-export const formatRelativeTime = (date: Date): string => {
-  const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+export const formatRelativeTime = (date: Date | string | undefined): string => {
+  // Handle undefined or null
+  if (!date) return 'unknown';
+  
+  try {
+    const now = new Date();
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    
+    // Check if date is valid
+    if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
+      return 'unknown';
+    }
+    
+    const diffInSeconds = Math.floor((now.getTime() - dateObj.getTime()) / 1000);
+    
+    // Handle future dates
+    if (diffInSeconds < 0) return 'just now';
 
-  if (diffInSeconds < 60) {
-    return 'just now';
+    if (diffInSeconds < 60) {
+      return 'just now';
+    }
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes}m ago`;
+    }
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) {
+      return `${diffInHours}h ago`;
+    }
+
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) {
+      return `${diffInDays}d ago`;
+    }
+
+    return formatDate(dateObj);
+  } catch (error) {
+    console.error('Error formatting relative time:', error);
+    return 'unknown';
   }
-
-  const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) {
-    return `${diffInMinutes}m ago`;
-  }
-
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) {
-    return `${diffInHours}h ago`;
-  }
-
-  const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 7) {
-    return `${diffInDays}d ago`;
-  }
-
-  return formatDate(date);
 };
 
 /**

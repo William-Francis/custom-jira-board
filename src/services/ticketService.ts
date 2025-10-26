@@ -6,6 +6,7 @@
 import { Ticket, TicketStatus, TicketPriority } from '../types';
 import { mockTickets, simulateApiDelay } from './mockData';
 import { shouldUseMockApi } from '../config';
+import { jiraClient } from './jiraClient';
 
 /**
  * Ticket service interface
@@ -236,115 +237,144 @@ class MockTicketService implements TicketService {
 }
 
 /**
- * API ticket service implementation
+ * API ticket service implementation (Jira integration)
  */
 class ApiTicketService implements TicketService {
-  private baseUrl: string;
+  private async transformJiraIssueToTicket(jiraIssue: any): Promise<Ticket> {
+    // Safely extract fields with fallbacks
+    const fields = jiraIssue.fields || {};
+    
+    return {
+      id: jiraIssue.id || jiraIssue.key || `unknown-${Date.now()}`,
+      key: jiraIssue.key || 'UNKNOWN',
+      title: fields.summary || 'Untitled',
+      description: fields.description || '',
+      status: this.mapJiraStatusToTicketStatus(fields.status?.name),
+      priority: this.mapJiraPriorityToTicketPriority(fields.priority?.name),
+      assignee: fields.assignee ? {
+        id: fields.assignee.accountId || 'unknown',
+        name: fields.assignee.displayName || 'Unknown',
+        email: fields.assignee.emailAddress || '',
+        avatarUrl: fields.assignee.avatarUrls?.['48x48'],
+      } : undefined,
+      reporter: fields.reporter ? {
+        id: fields.reporter.accountId || 'unknown',
+        name: fields.reporter.displayName || 'Unknown',
+      } : undefined,
+      labels: Array.isArray(fields.labels) ? fields.labels : [],
+      createdAt: fields.created || new Date().toISOString(),
+      updatedAt: fields.updated || new Date().toISOString(),
+      issueType: fields.issuetype?.name || 'Task',
+      epic: fields.epicLink || (fields.parent?.fields?.issuetype?.name === 'Epic' ? fields.parent?.key : undefined),
+      epicName: fields.parent?.fields?.issuetype?.name === 'Epic' ? fields.parent?.fields?.summary : undefined,
+    };
+  }
+
+  private mapJiraStatusToTicketStatus(jiraStatus?: string): TicketStatus {
+    const statusMap: Record<string, TicketStatus> = {
+      'To Do': 'TODO',
+      'In Progress': 'IN_PROGRESS',
+      'Done': 'DONE',
+      'Backlog': 'BACKLOG',
+      'Review': 'REVIEW',
+      'In Review': 'REVIEW',
+      'Testing': 'TESTING',
+      'Blocked': 'BLOCKED',
+    };
+    return (jiraStatus && statusMap[jiraStatus]) || 'TODO';
+  }
+
+  private mapJiraPriorityToTicketPriority(jiraPriority?: string): TicketPriority {
+    const priorityMap: Record<string, TicketPriority> = {
+      'Highest': 'CRITICAL',
+      'High': 'HIGH',
+      'Medium': 'MEDIUM',
+      'Low': 'LOW',
+      'Lowest': 'LOWEST',
+    };
+    return (jiraPriority && priorityMap[jiraPriority]) || 'MEDIUM';
+  }
 
   constructor() {
-    this.baseUrl = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3001/api';
+    // Using Jira client
   }
 
   async getTickets(boardId: string, params?: Record<string, string | number | boolean>): Promise<Ticket[]> {
-    const searchParams = new URLSearchParams();
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        searchParams.append(key, String(value));
-      });
+    try {
+      // Fetch issues from Jira board
+      const jiraIssues = await jiraClient.getBoardIssues(boardId, params as Record<string, string | number>);
+      
+      // Transform Jira issues to tickets
+      return Promise.all(jiraIssues.map(issue => this.transformJiraIssueToTicket(issue)));
+    } catch (error) {
+      console.error('Failed to fetch tickets from Jira:', error);
+      throw error;
     }
-    
-    const response = await fetch(`${this.baseUrl}/boards/${boardId}/tickets?${searchParams}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch tickets: ${response.statusText}`);
-    }
-    return response.json();
   }
 
   async getTicket(ticketId: string): Promise<Ticket> {
-    const response = await fetch(`${this.baseUrl}/tickets/${ticketId}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ticket: ${response.statusText}`);
+    try {
+      const jiraIssue = await jiraClient.getIssue(ticketId);
+      return this.transformJiraIssueToTicket(jiraIssue);
+    } catch (error) {
+      console.error('Failed to fetch ticket from Jira:', error);
+      throw error;
     }
-    return response.json();
   }
 
   async createTicket(ticket: Partial<Ticket>): Promise<Ticket> {
-    const response = await fetch(`${this.baseUrl}/tickets`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(ticket),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to create ticket: ${response.statusText}`);
-    }
-    return response.json();
+    console.warn('Create ticket not yet implemented for Jira API');
+    throw new Error('Creating tickets is not yet implemented in this Jira integration');
   }
 
   async updateTicket(ticketId: string, updates: Partial<Ticket>): Promise<Ticket> {
-    const response = await fetch(`${this.baseUrl}/tickets/${ticketId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updates),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to update ticket: ${response.statusText}`);
-    }
-    return response.json();
+    console.warn('Update ticket not yet implemented for Jira API');
+    throw new Error('Updating tickets is not yet implemented in this Jira integration');
   }
 
   async deleteTicket(ticketId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/tickets/${ticketId}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to delete ticket: ${response.statusText}`);
-    }
+    console.warn('Delete ticket not yet implemented for Jira API');
+    throw new Error('Deleting tickets is not yet implemented in this Jira integration');
   }
 
   async moveTicket(ticketId: string, newStatus: TicketStatus): Promise<Ticket> {
-    const response = await fetch(`${this.baseUrl}/tickets/${ticketId}/move`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ status: newStatus }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to move ticket: ${response.statusText}`);
+    try {
+      // Get the ticket first to get its key
+      const ticket = await this.getTicket(ticketId);
+      const issueKey = ticket.key;
+      
+      // Map TicketStatus to Jira status names
+      const statusMap: Record<TicketStatus, string> = {
+        'TODO': 'To Do',
+        'IN_PROGRESS': 'In Progress',
+        'DONE': 'Done',
+        'BACKLOG': 'Backlog',
+        'REVIEW': 'Review',
+        'TESTING': 'Testing',
+        'BLOCKED': 'Blocked',
+      };
+      
+      const jiraStatusName = statusMap[newStatus];
+      
+      // Use the Jira client to transition the issue
+      await jiraClient.updateIssueStatus(issueKey, jiraStatusName);
+      
+      // Refresh the ticket to get the updated status
+      return await this.getTicket(ticketId);
+    } catch (error) {
+      console.error('Failed to move ticket:', error);
+      throw error;
     }
-    return response.json();
   }
 
   async assignTicket(ticketId: string, assigneeId: string): Promise<Ticket> {
-    const response = await fetch(`${this.baseUrl}/tickets/${ticketId}/assign`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ assigneeId }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to assign ticket: ${response.statusText}`);
-    }
-    return response.json();
+    console.warn('Assign ticket not yet implemented for Jira API');
+    throw new Error('Assigning tickets is not yet implemented in this Jira integration');
   }
 
   async updateTicketPriority(ticketId: string, priority: TicketPriority): Promise<Ticket> {
-    const response = await fetch(`${this.baseUrl}/tickets/${ticketId}/priority`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ priority }),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to update ticket priority: ${response.statusText}`);
-    }
-    return response.json();
+    console.warn('Update priority not yet implemented for Jira API');
+    throw new Error('Updating ticket priority is not yet implemented in this Jira integration');
   }
 }
 

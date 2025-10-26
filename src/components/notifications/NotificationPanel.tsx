@@ -80,9 +80,12 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
   /**
    * Format timestamp
    */
-  const formatTimestamp = useCallback((timestamp: Date): string => {
+  const formatTimestamp = useCallback((timestamp: Date | string): string => {
     const now = new Date();
-    const diff = now.getTime() - timestamp.getTime();
+    const dateObj = timestamp instanceof Date ? timestamp : new Date(timestamp);
+    if (isNaN(dateObj.getTime())) return 'invalid date';
+
+    const diff = now.getTime() - dateObj.getTime();
     const minutes = Math.floor(diff / (1000 * 60));
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));

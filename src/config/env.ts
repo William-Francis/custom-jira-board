@@ -37,7 +37,7 @@ export interface EnvConfig {
  * Get environment variable with fallback
  */
 function getEnvVar(key: string, fallback: string = ''): string {
-  return (import.meta as any).env?.[key] || fallback;
+  return import.meta.env[key] || fallback;
 }
 
 /**
@@ -72,7 +72,7 @@ export const envConfig: EnvConfig = {
   
   // Development Settings
   devMode: getBooleanEnvVar('VITE_DEV_MODE', true),
-  mockApi: getBooleanEnvVar('VITE_MOCK_API', true),
+  mockApi: getBooleanEnvVar('VITE_MOCK_API', false),
   
   // API Configuration
   apiBaseUrl: getEnvVar('VITE_API_BASE_URL', 'https://your-api-server.com/api'),
@@ -151,14 +151,26 @@ export function getJiraApiUrl(endpoint: string = ''): string {
  * Check if running in development mode
  */
 export function isDevelopment(): boolean {
-  return envConfig.devMode || (import.meta as any).env?.DEV === true;
+  return envConfig.devMode || import.meta.env.DEV === true;
 }
 
 /**
  * Check if mock API should be used
+ * Respect explicit VITE_MOCK_API setting regardless of dev mode
  */
 export function shouldUseMockApi(): boolean {
-  return envConfig.mockApi || isDevelopment();
+  // Only use mock API if explicitly enabled
+  // Don't force mock API just because we're in development mode
+  const useMock = typeof envConfig.mockApi === 'boolean' ? envConfig.mockApi : isDevelopment();
+  
+  // Debug logging
+  console.log('🔧 shouldUseMockApi check:', {
+    envConfigMockApi: envConfig.mockApi,
+    isDevelopment: isDevelopment(),
+    willUseMock: useMock
+  });
+  
+  return useMock;
 }
 
 /**

@@ -3,7 +3,7 @@
  * Manages columns, tickets, and drag-and-drop functionality
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { BoardProps, Ticket as TicketType, TicketStatus } from '../../types';
 import { Column } from './Column';
 import { useTickets, useBoardState, useErrorHandler } from '../../hooks';
@@ -17,6 +17,7 @@ interface ExtendedBoardProps extends BoardProps {
   onTicketDelete?: (ticketId: string) => void;
   onTicketView?: (ticket: TicketType) => void;
   onTicketAdd?: (status: TicketStatus) => void;
+  onTicketsChange?: (tickets: TicketType[]) => void;
   showAddButtons?: boolean;
   autoRefresh?: boolean;
   refreshInterval?: number;
@@ -33,6 +34,7 @@ export const Board: React.FC<ExtendedBoardProps> = ({
   onTicketDelete,
   onTicketView,
   onTicketAdd,
+  onTicketsChange,
   showAddButtons = true,
   autoRefresh = false,
   refreshInterval = 30000,
@@ -75,6 +77,11 @@ export const Board: React.FC<ExtendedBoardProps> = ({
         action: 'fetchTickets',
       }),
   });
+
+  // Notify parent when tickets change
+  useEffect(() => {
+    onTicketsChange?.(tickets);
+  }, [tickets, onTicketsChange]);
 
   /**
    * Handle ticket movement between columns

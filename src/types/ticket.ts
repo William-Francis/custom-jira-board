@@ -42,6 +42,7 @@ export interface Ticket {
   labels?: string[];
   storyPoints?: number;
   epic?: string;
+  epicName?: string;
   sprint?: Sprint;
 }
 

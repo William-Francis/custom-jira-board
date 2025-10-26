@@ -6,6 +6,7 @@
 import { BoardConfig, Sprint } from '../types';
 import { mockBoardConfig, mockSprint, simulateApiDelay } from './mockData';
 import { shouldUseMockApi } from '../config';
+import { jiraClient } from './jiraClient';
 
 /**
  * Board service interface
@@ -213,112 +214,147 @@ class MockBoardService implements BoardService {
 }
 
 /**
- * API board service implementation
+ * API board service implementation (Jira integration)
  */
 class ApiBoardService implements BoardService {
-  private baseUrl: string;
-
   constructor() {
-    this.baseUrl = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3001/api';
+    // Using Jira client
   }
 
   async getBoards(): Promise<BoardConfig[]> {
-    const response = await fetch(`${this.baseUrl}/boards`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch boards: ${response.statusText}`);
+    try {
+      const jiraBoards = await jiraClient.getBoards();
+      
+      // Transform Jira boards to BoardConfig format
+      return jiraBoards.map(board => ({
+        id: board.id.toString(),
+        name: board.name,
+        description: board.location?.displayName || '',
+        columns: [
+          { id: 'TODO', name: 'To Do', status: 'TODO', color: '#4CAF50' },
+          { id: 'IN_PROGRESS', name: 'In Progress', status: 'IN_PROGRESS', color: '#2196F3' },
+          { id: 'DONE', name: 'Done', status: 'DONE', color: '#9E9E9E' },
+        ],
+        workflow: [
+          { from: 'TODO', to: 'IN_PROGRESS' },
+          { from: 'IN_PROGRESS', to: 'DONE' },
+          { from: 'IN_PROGRESS', to: 'TODO' },
+        ],
+      }));
+    } catch (error) {
+      console.error('Failed to fetch boards from Jira:', error);
+      throw error;
     }
-    return response.json();
   }
 
   async getBoard(boardId: string): Promise<BoardConfig> {
-    const response = await fetch(`${this.baseUrl}/boards/${boardId}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch board: ${response.statusText}`);
-    }
-    return response.json();
-  }
-
-  async createBoard(board: Partial<BoardConfig>): Promise<BoardConfig> {
-    const response = await fetch(`${this.baseUrl}/boards`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(board),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to create board: ${response.statusText}`);
-    }
-    return response.json();
-  }
-
-  async updateBoard(boardId: string, updates: Partial<BoardConfig>): Promise<BoardConfig> {
-    const response = await fetch(`${this.baseUrl}/boards/${boardId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updates),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to update board: ${response.statusText}`);
-    }
-    return response.json();
-  }
-
-  async deleteBoard(boardId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/boards/${boardId}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to delete board: ${response.statusText}`);
+    try {
+      const jiraBoard = await jiraClient.getBoard(boardId);
+      const boardConfig = await jiraClient.getBoardConfiguration(boardId);
+      
+      // Extract columns from configuration
+      const jiraColumns = boardConfig.columnConfig?.columns || [];
+      
+      // Map Jira column names to status IDs
+      const columnMap: Record<string, string> = {
+        'To Do': 'TODO',
+        'Blocked': 'BLOCKED',
+        'In Progress': 'IN_PROGRESS',
+        'Code Review': 'REVIEW',
+        'Done': 'DONE',
+        'Testing': 'TESTING',
+      };
+      
+      // Define colors for each status
+      const colorMap: Record<string, string> = {
+        'TODO': '#4CAF50',
+        'BLOCKED': '#F44336',
+        'IN_PROGRESS': '#2196F3',
+        'REVIEW': '#FF9800',
+        'DONE': '#9E9E9E',
+        'TESTING': '#9C27B0',
+      };
+      
+      const columns = jiraColumns.map((col: any, index: number) => {
+        const columnName = col.name;
+        const statusId = columnMap[columnName] || columnName.toUpperCase().replace(/\s+/g, '_');
+        return {
+          id: statusId,
+          name: columnName,
+          status: statusId as any,
+          color: colorMap[statusId] || '#9E9E9E',
+        };
+      });
+      
+      // Build workflow (allow transitions between adjacent columns)
+      const workflow: { from: string; to: string }[] = [];
+      for (let i = 0; i < columns.length - 1; i++) {
+        workflow.push({ from: columns[i].status, to: columns[i + 1].status });
+        // Allow going back
+        workflow.push({ from: columns[i + 1].status, to: columns[i].status });
+      }
+      
+      return {
+        id: jiraBoard.id.toString(),
+        name: jiraBoard.name,
+        description: jiraBoard.location?.displayName || '',
+        columns,
+        workflow,
+      };
+    } catch (error) {
+      console.error('Failed to fetch board from Jira:', error);
+      throw error;
     }
   }
 
   async getSprints(boardId: string): Promise<Sprint[]> {
-    const response = await fetch(`${this.baseUrl}/boards/${boardId}/sprints`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch sprints: ${response.statusText}`);
+    try {
+      return await jiraClient.getSprints(boardId);
+    } catch (error) {
+      console.error('Failed to fetch sprints from Jira:', error);
+      throw error;
     }
-    return response.json();
   }
 
   async getActiveSprint(boardId: string): Promise<Sprint> {
-    const response = await fetch(`${this.baseUrl}/boards/${boardId}/sprints/active`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch active sprint: ${response.statusText}`);
+    try {
+      const activeSprint = await jiraClient.getActiveSprint(boardId);
+      if (!activeSprint) {
+        throw new Error('No active sprint found');
+      }
+      return activeSprint;
+    } catch (error) {
+      console.error('Failed to fetch active sprint from Jira:', error);
+      throw error;
     }
-    return response.json();
+  }
+
+  async createBoard(board: Partial<BoardConfig>): Promise<BoardConfig> {
+    // Not implemented in Jira API - would need to create via UI or admin API
+    throw new Error('Creating boards via API is not supported. Use Jira UI instead.');
+  }
+
+  async updateBoard(boardId: string, updates: Partial<BoardConfig>): Promise<BoardConfig> {
+    // Not implemented in Jira API for most operations
+    throw new Error('Updating boards via API is not supported. Use Jira UI instead.');
+  }
+
+  async deleteBoard(boardId: string): Promise<void> {
+    // Not implemented in Jira API
+    throw new Error('Deleting boards via API is not supported. Use Jira UI instead.');
   }
 
   async createSprint(sprint: Partial<Sprint>): Promise<Sprint> {
-    const response = await fetch(`${this.baseUrl}/sprints`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(sprint),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to create sprint: ${response.statusText}`);
-    }
-    return response.json();
+    // Not implemented - would need specific Jira API call
+    throw new Error('Creating sprints via API is not supported. Use Jira UI instead.');
   }
 
   async updateSprint(sprintId: string, updates: Partial<Sprint>): Promise<Sprint> {
-    const response = await fetch(`${this.baseUrl}/sprints/${sprintId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updates),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to update sprint: ${response.statusText}`);
-    }
-    return response.json();
+    // Not implemented
+    throw new Error('Updating sprints via API is not supported. Use Jira UI instead.');
   }
 }
+
 
 /**
  * Create board service instance
