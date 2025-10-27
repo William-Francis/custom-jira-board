@@ -173,29 +173,30 @@ const App: React.FC = () => {
         </header>
         <main className='app-main'>
           <div className='demo-section'>
-            <h2>
-              {sprint ? `${sprint.name} - Active Sprint` : 'Jira Board'}
-              {sprint?.goal && (
-                <span
-                  style={{
-                    fontSize: '0.8em',
-                    color: '#666',
-                    display: 'block',
-                    marginTop: '0.5em',
-                  }}
-                >
-                  Goal: {sprint.goal}
-                </span>
-              )}
-            </h2>
-            <p>
-              {sprint
-                ? `Viewing ${sprint.name} sprint with live updates from Jira. Drag tickets between columns to update their status.`
-                : 'Successfully implemented live Jira integration with drag-and-drop functionality.'}
-            </p>
+            <div>
+              <h2>
+                {sprint ? `${sprint.name} - Active Sprint` : 'Jira Board'}
+                {sprint?.goal && (
+                  <span
+                    style={{
+                      fontSize: '0.8em',
+                      color: '#666',
+                      display: 'block',
+                      marginTop: '0.5em',
+                    }}
+                  >
+                    Goal: {sprint.goal}
+                  </span>
+                )}
+              </h2>
+              <p>
+                {sprint
+                  ? `Viewing ${sprint.name} sprint with live updates from Jira. Drag tickets between columns to update their status.`
+                  : 'Successfully implemented live Jira integration with drag-and-drop functionality.'}
+              </p>
 
-            {/* Board Component */}
-            <div className='board-container'>
+              {/* Board Component */}
+
               <Board
                 boardId={envConfig.jiraBoardId || 'board-1'}
                 onTicketEdit={handleTicketEdit}

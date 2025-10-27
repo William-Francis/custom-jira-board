@@ -3,9 +3,10 @@
  * Manages columns, tickets, and drag-and-drop functionality
  */
 
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { BoardProps, Ticket as TicketType, TicketStatus } from '../../types';
 import { Column } from './Column';
+import { AddTicketModal } from './AddTicketModal';
 import { useTickets, useBoardState, useErrorHandler } from '../../hooks';
 import './board.css';
 
@@ -41,7 +42,10 @@ export const Board: React.FC<ExtendedBoardProps> = ({
   className = '',
   ...props
 }) => {
-  // const [draggedTicket, setDraggedTicket] = useState<TicketType | null>(null);
+  const [isAddTicketModalOpen, setIsAddTicketModalOpen] = useState(false);
+  const [addTicketStatus, setAddTicketStatus] = useState<TicketStatus | null>(
+    null
+  );
 
   // Initialize error handler
   const errorHandler = useErrorHandler({
@@ -143,13 +147,41 @@ export const Board: React.FC<ExtendedBoardProps> = ({
   );
 
   /**
-   * Handle add ticket
+   * Handle add ticket button click
    */
-  const handleAddTicket = useCallback(
-    (status: TicketStatus) => {
-      onTicketAdd?.(status);
+  const handleAddTicketClick = useCallback((status: TicketStatus) => {
+    setAddTicketStatus(status);
+    setIsAddTicketModalOpen(true);
+  }, []);
+
+  /**
+   * Handle ticket submission
+   */
+  const handleTicketSubmit = useCallback(
+    async (ticketData: {
+      title: string;
+      description?: string;
+      epic?: string;
+    }) => {
+      try {
+        // Call the parent's handler
+        onTicketAdd?.(addTicketStatus!);
+        // In a real implementation, this would call ticketService.createTicket
+        console.log('Creating ticket:', {
+          ...ticketData,
+          status: addTicketStatus,
+        });
+
+        // Close modal after successful submission
+        setIsAddTicketModalOpen(false);
+      } catch (error) {
+        errorHandler.addError(error as Error, {
+          component: 'Board',
+          action: 'createTicket',
+        });
+      }
     },
-    [onTicketAdd]
+    [addTicketStatus, onTicketAdd, errorHandler]
   );
 
   /**
@@ -396,7 +428,7 @@ export const Board: React.FC<ExtendedBoardProps> = ({
               onEditTicket={handleTicketEdit}
               onDeleteTicket={handleTicketDelete}
               onViewTicket={handleTicketView}
-              onAddTicket={handleAddTicket}
+              onAddTicket={handleAddTicketClick}
               showAddButton={showAddButtons}
               wipLimit={column.wipLimit}
               isDropTarget={true}
@@ -427,6 +459,16 @@ export const Board: React.FC<ExtendedBoardProps> = ({
             </div>
           ))}
         </div>
+      )}
+
+      {/* Add Ticket Modal */}
+      {addTicketStatus && (
+        <AddTicketModal
+          isOpen={isAddTicketModalOpen}
+          status={addTicketStatus}
+          onClose={() => setIsAddTicketModalOpen(false)}
+          onSubmit={handleTicketSubmit}
+        />
       )}
     </div>
   );

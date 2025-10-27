@@ -1,0 +1,97 @@
+.add-ticket-form {
+  padding: 1.5rem;
+}
+
+.add-ticket-form__field {
+  margin-bottom: 1.5rem;
+}
+
+.add-ticket-form__label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #f5f5f5;
+  margin-bottom: 0.5rem;
+}
+
+.add-ticket-form__label .required {
+  color: #ff6b6b;
+  margin-left: 0.25rem;
+}
+
+.add-ticket-form__input,
+.add-ticket-form__textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-family: inherit;
+  background-color: white;
+  color: #333;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.add-ticket-form__input:focus,
+.add-ticket-form__textarea:focus {
+  outline: none;
+  border-color: #0052cc;
+  box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.1);
+}
+
+.add-ticket-form__input:disabled,
+.add-ticket-form__textarea:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.add-ticket-form__textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.add-ticket-form__actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.add-ticket-form__button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.add-ticket-form__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.add-ticket-form__button--cancel {
+  background: white;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.add-ticket-form__button--cancel:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #bbb;
+}
+
+.add-ticket-form__button--submit {
+  background: #0052cc;
+  color: white;
+}
+
+.add-ticket-form__button--submit:hover:not(:disabled) {
+  background: #0048b3;
+}
