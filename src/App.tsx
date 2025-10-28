@@ -139,6 +139,32 @@ const App: React.FC = () => {
     setSprintTickets(tickets);
   };
 
+  const handleSyncEpicLabels = async () => {
+    try {
+      if (!envConfig.jiraBoardId) {
+        alert('No board ID configured');
+        return;
+      }
+
+      const { ticketService } = await import('./services');
+      const results = await (ticketService as any).syncEpicLabels(
+        envConfig.jiraBoardId
+      );
+
+      alert(
+        `Epic labels synced!\n${results.updated} tickets updated.\n${results.errors.length} errors occurred.`
+      );
+
+      // Refresh the board to show updated labels
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to sync epic labels:', error);
+      alert(
+        `Failed to sync epic labels: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  };
+
   return (
     <ErrorBoundary>
       <div className='app'>
@@ -148,6 +174,14 @@ const App: React.FC = () => {
             <p>Active Sprint Board with Enhanced Features</p>
           </div>
           <div className='app-header__actions'>
+            <button
+              type='button'
+              className='app-header__action'
+              onClick={handleSyncEpicLabels}
+              title='Sync Epic Labels'
+            >
+              🏷️
+            </button>
             <button
               type='button'
               className='app-header__action'

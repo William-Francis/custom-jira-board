@@ -487,6 +487,7 @@ class JiraClient {
     summary?: string;
     description?: string;
     epicKey?: string;
+    labels?: string[];
   }): Promise<any> {
     try {
       const requestBody: any = {
@@ -505,6 +506,10 @@ class JiraClient {
         requestBody.fields.parent = { key: updates.epicKey };
       }
 
+      if (updates.labels !== undefined) {
+        requestBody.fields.labels = updates.labels;
+      }
+
       const response = await this.makeRequest<any>(`/issue/${issueKey}`, {
         method: 'PUT',
         headers: {
@@ -516,6 +521,19 @@ class JiraClient {
       return response;
     } catch (error) {
       console.error('Failed to update issue:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get an epic's details including labels
+   */
+  async getEpicLabels(epicKey: string): Promise<string[]> {
+    try {
+      const response: any = await this.makeRequest(`/issue/${epicKey}?fields=labels`);
+      return response.fields?.labels || [];
+    } catch (error) {
+      console.error('Failed to fetch epic labels:', error);
       throw error;
     }
   }
