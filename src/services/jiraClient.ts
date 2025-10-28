@@ -105,12 +105,34 @@ class JiraClient {
         },
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Proxy API error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
+      // Handle 204 No Content responses (success with no body)
+      if (response.status === 204) {
+        console.log(`✅ Received 204 No Content for ${url}`);
+        return undefined as T;
       }
 
-      return await response.json();
+      // Get response body as text first
+      const responseText = await response.text();
+
+      if (!response.ok) {
+        try {
+          // Try to parse as JSON
+          const errorData = responseText ? JSON.parse(responseText) : { message: 'No error details provided' };
+          throw new Error(`Proxy API error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
+        } catch (parseError) {
+          // Not JSON or empty, use the text directly
+          const errorMsg = responseText || 'Empty response';
+          throw new Error(`Proxy API error: ${response.status} ${response.statusText} - ${errorMsg.substring(0, 200)}`);
+        }
+      }
+
+      // Success - parse as JSON
+      if (!responseText) {
+        console.warn(`Warning: Empty response from ${url}`);
+        return undefined as T;
+      }
+      
+      return JSON.parse(responseText);
     } catch (error) {
       console.error('Jira API request failed:', error);
       throw error;
@@ -172,7 +194,9 @@ class JiraClient {
         ? '&' + Object.entries(params).map(([k, v]) => `${k}=${v}`).join('&')
         : '';
       
-      const jqlParam = jql ? `jql=${encodeURIComponent(jql)}` : 'jql=';
+      // If no JQL is provided, use a default query (all issues on the board)
+      const effectiveJql = jql || `ORDER BY updated DESC`;
+      const jqlParam = `jql=${encodeURIComponent(effectiveJql)}`;
       const fieldsParam = 'fields=summary,description,status,assignee,priority,issuetype,created,updated,labels,parent,sprint,epicLink&expand=fields.parent.fields.issuetype,fields.parent.fields.summary';
       const maxResults = params?.maxResults || 50;
       
@@ -288,17 +312,28 @@ class JiraClient {
   /**
    * Transition an issue to a new status
    */
-  async transitionIssue(issueKey: string, transitionId: string): Promise<void> {
+  async transitionIssue(issueKey: string, transitionId: string, resolution?: string): Promise<void> {
     try {
+      const payload: any = {
+        transition: {
+          id: transitionId
+        }
+      };
+
+      // Add resolution if provided (for Done status)
+      if (resolution) {
+        payload.fields = {
+          resolution: {
+            name: resolution
+          }
+        };
+      }
+
       await this.makeRequest(
         `/issue/${issueKey}/transitions`,
         {
           method: 'POST',
-          body: JSON.stringify({
-            transition: {
-              id: transitionId
-            }
-          })
+          body: JSON.stringify(payload)
         }
       );
     } catch (error) {
@@ -320,32 +355,70 @@ class JiraClient {
         t.to.name.toLowerCase() === newStatusName.toLowerCase()
       );
       
+      // Helper function to check if transition leads to done status
+      const isTransitionToDone = (trans?: any) => {
+        if (!trans) return false;
+        const lowerName = trans.to?.name?.toLowerCase() || '';
+        const category = trans.to?.statusCategory?.key;
+        return lowerName === 'done' || 
+               lowerName.includes('done') || 
+               category === 'done' ||
+               lowerName === 'pass' ||
+               lowerName.includes('ready for release');
+      };
+      
+      // Check if we're transitioning to Done status to set resolution
+      const isDoneStatus = isTransitionToDone(transition) || 
+                          (newStatusName.toLowerCase() === 'done');
+      
       if (!transition) {
         // Try to find by status category
+        const statusName = newStatusName.toUpperCase();
+        
         const fallbackTransition = transitions.find(t => {
           const category = t.to.statusCategory?.key;
-          const statusName = newStatusName.toUpperCase();
+          const toName = t.to.name.toLowerCase();
           
           // Map status to Jira status categories
           if (statusName === 'TODO' || statusName === 'BACKLOG') {
             return category === 'new' || category === 'to-do';
-          } else if (statusName === 'IN_PROGRESS') {
+          } else if (statusName === 'IN_PROGRESS' || statusName === 'IN PROGRESS') {
             return category === 'indeterminate';
           } else if (statusName === 'DONE') {
             return category === 'done';
+          } else if (statusName === 'BLOCKED') {
+            // For Blocked status, look for "Awaiting Info" or similar statuses
+            return toName.includes('awaiting') || 
+                   toName.includes('info') ||
+                   t.name.toLowerCase().includes('block') || 
+                   toName.includes('block');
           }
           return false;
         });
         
         if (fallbackTransition) {
-          await this.transitionIssue(issueKey, fallbackTransition.id);
+          const isFallbackDone = isTransitionToDone(fallbackTransition);
+          await this.transitionIssue(issueKey, fallbackTransition.id, isFallbackDone ? 'Done' : undefined);
           return;
         }
         
-        throw new Error(`No transition found for status: ${newStatusName}`);
+        // If still no match, try fuzzy matching on transition name or target name
+        const fuzzyMatch = transitions.find(t => 
+          t.name.toLowerCase().includes(newStatusName.toLowerCase()) ||
+          t.to.name.toLowerCase().includes(newStatusName.toLowerCase())
+        );
+        
+        if (fuzzyMatch) {
+          const isFuzzyDone = isTransitionToDone(fuzzyMatch);
+          await this.transitionIssue(issueKey, fuzzyMatch.id, isFuzzyDone ? 'Done' : undefined);
+          return;
+        }
+        
+        throw new Error(`No transition found for status: ${newStatusName}. Available transitions: ${transitions.map(t => t.to.name).join(', ')}`);
       }
       
-      await this.transitionIssue(issueKey, transition.id);
+      const finalIsDone = isTransitionToDone(transition);
+      await this.transitionIssue(issueKey, transition.id, finalIsDone ? 'Done' : undefined);
     } catch (error) {
       console.error('Failed to update issue status:', error);
       throw error;
@@ -363,6 +436,86 @@ class JiraClient {
       return response.issues || [];
     } catch (error) {
       console.error('Failed to search issues:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new issue in Jira
+   */
+  async createIssue(
+    projectKey: string,
+    summary: string,
+    description: string,
+    issueType: string = 'Task',
+    epicKey?: string
+  ): Promise<any> {
+    try {
+      const requestBody: any = {
+        fields: {
+          project: { key: projectKey },
+          summary,
+          description,
+          issuetype: { name: issueType },
+        },
+      };
+
+      // Add parent if epic is specified
+      if (epicKey) {
+        requestBody.fields.parent = { key: epicKey };
+      }
+
+      const response = await this.makeRequest<any>('/issue', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      return response;
+    } catch (error) {
+      console.error('Failed to create issue:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update an existing issue in Jira
+   */
+  async updateIssue(issueKey: string, updates: {
+    summary?: string;
+    description?: string;
+    epicKey?: string;
+  }): Promise<any> {
+    try {
+      const requestBody: any = {
+        fields: {},
+      };
+
+      if (updates.summary) {
+        requestBody.fields.summary = updates.summary;
+      }
+
+      if (updates.description !== undefined) {
+        requestBody.fields.description = updates.description;
+      }
+
+      if (updates.epicKey) {
+        requestBody.fields.parent = { key: updates.epicKey };
+      }
+
+      const response = await this.makeRequest<any>(`/issue/${issueKey}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      return response;
+    } catch (error) {
+      console.error('Failed to update issue:', error);
       throw error;
     }
   }

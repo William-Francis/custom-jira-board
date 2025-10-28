@@ -238,10 +238,12 @@ export const useRealtime = (config: UseRealtimeConfig = {}): UseRealtimeReturn =
   const handleTicketUpdate = useCallback((event: RealtimeEvent) => {
     if (enableNotifications && notificationServiceRef.current) {
       const { ticketId, changes, userId } = event.data;
+      // Ensure changes is an array
+      const changesArray = Array.isArray(changes) ? changes : (changes ? [String(changes)] : ['updated']);
       notificationServiceRef.current.ticketUpdate(
         ticketId,
         event.ticketId || 'Unknown',
-        changes || ['updated'],
+        changesArray,
         userId || 'Unknown User'
       );
     }

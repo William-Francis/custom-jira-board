@@ -5,7 +5,7 @@
 
 import { Ticket, TicketStatus, TicketPriority } from '../types';
 import { mockTickets, simulateApiDelay } from './mockData';
-import { shouldUseMockApi } from '../config';
+import { shouldUseMockApi, envConfig } from '../config';
 import { jiraClient } from './jiraClient';
 
 /**
@@ -240,6 +240,41 @@ class MockTicketService implements TicketService {
  * API ticket service implementation (Jira integration)
  */
 class ApiTicketService implements TicketService {
+  /**
+   * Extract plain text from Jira's Atlassian Document Format (ADF)
+   */
+  private extractTextFromADF(adfContent: any): string {
+    if (!adfContent) return '';
+    
+    // If it's already a string, return it
+    if (typeof adfContent === 'string') return adfContent;
+    
+    // If it's an ADF document object, extract text recursively
+    if (typeof adfContent === 'object') {
+      let text = '';
+      
+      // Helper function to recursively extract text
+      const extractText = (node: any): string => {
+        if (!node) return '';
+        
+        if (node.type === 'text') {
+          return node.text || '';
+        }
+        
+        if (node.content && Array.isArray(node.content)) {
+          return node.content.map((child: any) => extractText(child)).join('');
+        }
+        
+        return '';
+      };
+      
+      text = extractText(adfContent);
+      return text.trim();
+    }
+    
+    return '';
+  }
+
   private async transformJiraIssueToTicket(jiraIssue: any): Promise<Ticket> {
     // Safely extract fields with fallbacks
     const fields = jiraIssue.fields || {};
@@ -248,7 +283,7 @@ class ApiTicketService implements TicketService {
       id: jiraIssue.id || jiraIssue.key || `unknown-${Date.now()}`,
       key: jiraIssue.key || 'UNKNOWN',
       title: fields.summary || 'Untitled',
-      description: fields.description || '',
+      description: this.extractTextFromADF(fields.description) || '',
       status: this.mapJiraStatusToTicketStatus(fields.status?.name),
       priority: this.mapJiraPriorityToTicketPriority(fields.priority?.name),
       assignee: fields.assignee ? {
@@ -274,12 +309,20 @@ class ApiTicketService implements TicketService {
     const statusMap: Record<string, TicketStatus> = {
       'To Do': 'TODO',
       'In Progress': 'IN_PROGRESS',
+      'In Progress QA': 'IN_PROGRESS',
       'Done': 'DONE',
       'Backlog': 'BACKLOG',
       'Review': 'REVIEW',
+      'Code Review': 'REVIEW',
       'In Review': 'REVIEW',
       'Testing': 'TESTING',
+      'In Testing': 'TESTING',
       'Blocked': 'BLOCKED',
+      'Awaiting Info': 'BLOCKED', // Jira's "Awaiting Info" maps to our "BLOCKED" status
+      'Ready for QA': 'TESTING',
+      'Ready for release': 'DONE',
+      'Pass': 'DONE',
+      'Fail': 'REVIEW',
     };
     return (jiraStatus && statusMap[jiraStatus]) || 'TODO';
   }
@@ -323,13 +366,53 @@ class ApiTicketService implements TicketService {
   }
 
   async createTicket(ticket: Partial<Ticket>): Promise<Ticket> {
-    console.warn('Create ticket not yet implemented for Jira API');
-    throw new Error('Creating tickets is not yet implemented in this Jira integration');
+    try {
+      const { title, description, epic, issueType } = ticket;
+      
+      if (!title) {
+        throw new Error('Ticket title is required');
+      }
+
+      // Get project key from environment
+      const projectKey = envConfig.jiraProjectKey || 'FW';
+      
+      // Create issue in Jira
+      const jiraIssue = await jiraClient.createIssue(
+        projectKey,
+        title,
+        description || '',
+        issueType || 'Task',
+        epic
+      );
+
+      // Transform Jira issue to our Ticket format
+      const newTicket = await this.transformJiraIssueToTicket(jiraIssue);
+      return newTicket;
+    } catch (error) {
+      console.error('Failed to create ticket:', error);
+      throw error;
+    }
   }
 
   async updateTicket(ticketId: string, updates: Partial<Ticket>): Promise<Ticket> {
-    console.warn('Update ticket not yet implemented for Jira API');
-    throw new Error('Updating tickets is not yet implemented in this Jira integration');
+    try {
+      // Get ticket to get its Jira key
+      const ticket = await this.getTicket(ticketId);
+      const issueKey = ticket.key;
+
+      // Update issue in Jira
+      await jiraClient.updateIssue(issueKey, {
+        summary: updates.title,
+        description: updates.description,
+        epicKey: updates.epic,
+      });
+
+      // Refresh and return updated ticket
+      return await this.getTicket(ticketId);
+    } catch (error) {
+      console.error('Failed to update ticket:', error);
+      throw error;
+    }
   }
 
   async deleteTicket(ticketId: string): Promise<void> {
@@ -348,10 +431,10 @@ class ApiTicketService implements TicketService {
         'TODO': 'To Do',
         'IN_PROGRESS': 'In Progress',
         'DONE': 'Done',
-        'BACKLOG': 'Backlog',
-        'REVIEW': 'Review',
-        'TESTING': 'Testing',
-        'BLOCKED': 'Blocked',
+        'BACKLOG': 'To Do', // Backlog typically maps to "To Do"
+        'REVIEW': 'Code Review',
+        'TESTING': 'In Testing',
+        'BLOCKED': 'Awaiting Info',
       };
       
       const jiraStatusName = statusMap[newStatus];
@@ -363,6 +446,12 @@ class ApiTicketService implements TicketService {
       return await this.getTicket(ticketId);
     } catch (error) {
       console.error('Failed to move ticket:', error);
+      
+      // Provide user-friendly error message
+      if (error instanceof Error && error.message.includes('No transition found')) {
+        throw new Error(`Cannot move ticket to "${newStatus}". This status may not be available in the current workflow. Please try a different status.`);
+      }
+      
       throw error;
     }
   }

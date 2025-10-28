@@ -6,6 +6,8 @@
 export { Ticket } from './Ticket';
 export { Column } from './Column';
 export { Board } from './Board';
+export { AddTicketModal } from './AddTicketModal';
+export { EditTicketModal } from './EditTicketModal';
 
 // Re-export default exports for convenience
 export { default as TicketComponent } from './Ticket';

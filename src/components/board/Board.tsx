@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { BoardProps, Ticket as TicketType, TicketStatus } from '../../types';
 import { Column } from './Column';
 import { AddTicketModal } from './AddTicketModal';
+import { EditTicketModal } from './EditTicketModal';
 import { useTickets, useBoardState, useErrorHandler } from '../../hooks';
 import './board.css';
 
@@ -46,6 +47,8 @@ export const Board: React.FC<ExtendedBoardProps> = ({
   const [addTicketStatus, setAddTicketStatus] = useState<TicketStatus | null>(
     null
   );
+  const [isEditTicketModalOpen, setIsEditTicketModalOpen] = useState(false);
+  const [editTicket, setEditTicket] = useState<TicketType | null>(null);
 
   // Initialize error handler
   const errorHandler = useErrorHandler({
@@ -111,9 +114,44 @@ export const Board: React.FC<ExtendedBoardProps> = ({
    */
   const handleTicketEdit = useCallback(
     (ticket: TicketType) => {
+      setEditTicket(ticket);
+      setIsEditTicketModalOpen(true);
       onTicketEdit?.(ticket);
     },
     [onTicketEdit]
+  );
+
+  /**
+   * Handle ticket update
+   */
+  const handleTicketUpdate = useCallback(
+    async (ticketData: {
+      title: string;
+      description?: string;
+      epic?: string;
+    }) => {
+      if (!editTicket) return;
+
+      try {
+        const { ticketService } = await import('../../services');
+
+        // Update ticket in Jira
+        await ticketService.updateTicket(editTicket.id, ticketData);
+
+        console.log('✅ Ticket updated successfully');
+
+        // Close modal and refresh
+        setIsEditTicketModalOpen(false);
+        setEditTicket(null);
+        await refreshTickets();
+      } catch (error) {
+        errorHandler.addError(error as Error, {
+          component: 'Board',
+          action: 'updateTicket',
+        });
+      }
+    },
+    [editTicket, errorHandler, refreshTickets]
   );
 
   /**
@@ -164,16 +202,28 @@ export const Board: React.FC<ExtendedBoardProps> = ({
       epic?: string;
     }) => {
       try {
-        // Call the parent's handler
-        onTicketAdd?.(addTicketStatus!);
-        // In a real implementation, this would call ticketService.createTicket
-        console.log('Creating ticket:', {
+        const { ticketService } = await import('../../services');
+
+        // Create ticket with status and other fields
+        const ticketDataWithStatus = {
           ...ticketData,
-          status: addTicketStatus,
-        });
+          status: addTicketStatus!,
+        };
+
+        const newTicket = await ticketService.createTicket(
+          ticketDataWithStatus as any
+        );
+
+        console.log('✅ Ticket created successfully:', newTicket);
 
         // Close modal after successful submission
         setIsAddTicketModalOpen(false);
+
+        // Refresh tickets to show the new one
+        await refreshTickets();
+
+        // Call parent handler
+        onTicketAdd?.(addTicketStatus!);
       } catch (error) {
         errorHandler.addError(error as Error, {
           component: 'Board',
@@ -181,7 +231,7 @@ export const Board: React.FC<ExtendedBoardProps> = ({
         });
       }
     },
-    [addTicketStatus, onTicketAdd, errorHandler]
+    [addTicketStatus, onTicketAdd, errorHandler, refreshTickets]
   );
 
   /**
@@ -470,6 +520,17 @@ export const Board: React.FC<ExtendedBoardProps> = ({
           onSubmit={handleTicketSubmit}
         />
       )}
+
+      {/* Edit Ticket Modal */}
+      <EditTicketModal
+        isOpen={isEditTicketModalOpen}
+        ticket={editTicket}
+        onClose={() => {
+          setIsEditTicketModalOpen(false);
+          setEditTicket(null);
+        }}
+        onSubmit={handleTicketUpdate}
+      />
     </div>
   );
 };

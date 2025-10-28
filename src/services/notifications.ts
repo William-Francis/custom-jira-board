@@ -134,10 +134,11 @@ export class NotificationService {
    * Show ticket update notification
    */
   ticketUpdate(ticketId: string, ticketKey: string, changes: string[], userId: string): string {
+    const changesText = Array.isArray(changes) ? changes.join(', ') : String(changes || 'updated');
     return this.show({
       type: 'ticket_update',
       title: `Ticket ${ticketKey} Updated`,
-      message: `Updated by ${userId}: ${changes.join(', ')}`,
+      message: `Updated by ${userId}: ${changesText}`,
       persistent: false,
       ticketId,
       data: { changes, userId },

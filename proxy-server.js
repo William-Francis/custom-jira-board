@@ -42,6 +42,7 @@ const authHeader = `Basic ${Buffer.from(`${JIRA_USERNAME}:${JIRA_API_TOKEN}`).to
 app.all('/api/jira/*', async (req, res) => {
   try {
     let jiraPath = req.path.replace('/api/jira', '');
+    const queryString = req.url.split('?')[1] || '';
     
     // Handle special endpoints
     if (jiraPath === '/board') {
@@ -69,7 +70,9 @@ app.all('/api/jira/*', async (req, res) => {
       jiraPath = `/rest/api/3${jiraPath}`;
     }
     
-    const url = `${JIRA_BASE_URL}${jiraPath}`;
+    const url = queryString 
+      ? `${JIRA_BASE_URL}${jiraPath}?${queryString}`
+      : `${JIRA_BASE_URL}${jiraPath}`;
     
     console.log(`🔄 Proxying request to: ${req.method} ${url}`);
     
@@ -91,6 +94,12 @@ app.all('/api/jira/*', async (req, res) => {
     
     // Get response as text first to check if it's HTML
     const text = await response.text();
+    
+    // Handle 204 No Content (successful with no body)
+    if (response.status === 204) {
+      console.log(`✅ Successfully proxied ${req.method} ${url} (204 No Content)`);
+      return res.status(204).send();
+    }
     
     if (!response.ok) {
       console.error(`❌ Jira API error: ${response.status}`);
@@ -140,9 +149,11 @@ app.all('/api/jira/*', async (req, res) => {
     }
   } catch (error) {
     console.error('❌ Proxy error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       error: 'Proxy error',
-      message: error.message,
+      message: error.message || 'Unknown error occurred',
+      details: error.toString(),
     });
   }
 });
