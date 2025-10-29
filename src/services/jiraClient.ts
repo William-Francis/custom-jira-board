@@ -73,6 +73,45 @@ export interface JiraSprint {
 }
 
 /**
+ * Convert plain text to Atlassian Document Format (ADF)
+ */
+function textToADF(text: string): any {
+  if (!text) {
+    return {
+      type: 'doc',
+      version: 1,
+      content: []
+    };
+  }
+
+  // Split by newlines and create paragraphs
+  const lines = text.split('\n').filter(line => line.trim() !== '');
+  const content = lines.map(line => ({
+    type: 'paragraph',
+    content: [
+      {
+        type: 'text',
+        text: line
+      }
+    ]
+  }));
+
+  // If no content, add empty paragraph
+  if (content.length === 0) {
+    content.push({
+      type: 'paragraph',
+      content: []
+    });
+  }
+
+  return {
+    type: 'doc',
+    version: 1,
+    content
+  };
+}
+
+/**
  * Jira REST API Client
  */
 class JiraClient {
@@ -200,7 +239,7 @@ class JiraClient {
       const fieldsParam = 'fields=summary,description,status,assignee,priority,issuetype,created,updated,labels,parent,sprint,epicLink&expand=fields.parent.fields.issuetype,fields.parent.fields.summary';
       const maxResults = params?.maxResults || 50;
       
-      const response: { issues: JiraIssue[] } = await this.makeRequest(
+      const response: { issues: Array<{ id: string; key: string; fields?: any }> } = await this.makeRequest(
         `/board/${boardId}/issue?${jqlParam}&${fieldsParam}&maxResults=${maxResults}${paramsString}`
       );
       
@@ -215,7 +254,7 @@ class JiraClient {
       }
       
       // Filter issues by active sprint if we have an active sprint
-      let issues = response.issues || [];
+      let issues: any[] = response.issues || [];
       if (activeSprintId) {
         issues = issues.filter(issue => {
           const sprintField = issue.fields?.sprint;
@@ -233,7 +272,7 @@ class JiraClient {
         console.log(`✅ Fetched ${issues.length} issues from board ${boardId} (no sprint filter)`);
       }
       
-      return issues;
+      return issues as JiraIssue[];
     } catch (error) {
       console.error('Failed to fetch board issues:', error);
       throw error;
@@ -275,6 +314,32 @@ class JiraClient {
       return sprints.values || [];
     } catch (error) {
       console.error('Failed to fetch sprints:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add an issue to a sprint
+   * NOTE: This endpoint often doesn't work (405/404 errors). 
+   * Use sprint custom field during issue creation instead.
+   */
+  async addIssueToSprint(sprintId: number, issueIdOrKey: string, boardId?: string): Promise<void> {
+    try {
+      // Use the standard sprint endpoint (without board ID)
+      const endpoint = `/sprint/${sprintId}/issue`;
+      
+      await this.makeRequest(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          issues: [issueIdOrKey]
+        }),
+      });
+      console.log(`✅ Added issue ${issueIdOrKey} to sprint ${sprintId}`);
+    } catch (error) {
+      console.error(`Failed to add issue ${issueIdOrKey} to sprint ${sprintId}:`, error);
       throw error;
     }
   }
@@ -430,13 +495,45 @@ class JiraClient {
    */
   async searchIssues(jql: string): Promise<JiraIssue[]> {
     try {
+      // Use the new /search/jql endpoint instead of deprecated /search
       const response: { issues: JiraIssue[] } = await this.makeRequest(
-        `/search?jql=${encodeURIComponent(jql)}&fields=summary,description,status,assignee,priority,issuetype,created,updated,labels,parent`
+        `/search/jql?jql=${encodeURIComponent(jql)}&fields=summary,description,status,assignee,priority,issuetype,created,updated,labels,parent`
       );
       return response.issues || [];
     } catch (error) {
       console.error('Failed to search issues:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get sprint custom field ID from an existing issue with a sprint
+   */
+  private async getSprintCustomFieldId(projectKey: string): Promise<string | null> {
+    try {
+      // Search for an issue in the project that has a sprint field
+      const jql = `project = ${projectKey} AND sprint IS NOT EMPTY`;
+      const searchResult: { issues: Array<{ fields: any }> } = await this.makeRequest(
+        `/search/jql?jql=${encodeURIComponent(jql)}&fields=*all&maxResults=1`
+      );
+      
+      if (searchResult.issues && searchResult.issues.length > 0) {
+        const fields = searchResult.issues[0].fields;
+        // Find the sprint field - it's usually a custom field
+        for (const [key, value] of Object.entries(fields)) {
+          if (key.startsWith('customfield_') && Array.isArray(value) && value.length > 0) {
+            const sprintValue = value[0];
+            if (sprintValue && typeof sprintValue === 'object' && (sprintValue.id || sprintValue.name)) {
+              console.log(`📋 Discovered sprint custom field: ${key}`);
+              return key;
+            }
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      console.warn('Could not discover sprint custom field ID:', error);
+      return null;
     }
   }
 
@@ -448,14 +545,21 @@ class JiraClient {
     summary: string,
     description: string,
     issueType: string = 'Task',
-    epicKey?: string
+    epicKey?: string,
+    sprintId?: number,
+    boardId?: string
   ): Promise<any> {
     try {
+      // Validate project key
+      if (!projectKey || !projectKey.trim()) {
+        throw new Error('Project key is required and cannot be empty');
+      }
+
       const requestBody: any = {
         fields: {
-          project: { key: projectKey },
+          project: { key: projectKey.trim() },
           summary,
-          description,
+          description: textToADF(description || ''),
           issuetype: { name: issueType },
         },
       };
@@ -465,6 +569,24 @@ class JiraClient {
         requestBody.fields.parent = { key: epicKey };
       }
 
+      // Try to set sprint during creation if sprintId is provided
+      // This is more reliable than adding after creation
+      let sprintWasSetDuringCreation = false;
+      if (sprintId) {
+        try {
+          const sprintFieldId = await this.getSprintCustomFieldId(projectKey);
+          if (sprintFieldId) {
+            requestBody.fields[sprintFieldId] = sprintId;
+            sprintWasSetDuringCreation = true;
+            console.log(`🏃 Setting sprint ${sprintId} via custom field ${sprintFieldId} during creation`);
+          }
+        } catch (fieldError) {
+          console.warn('Error discovering sprint field, will skip sprint assignment:', fieldError);
+        }
+      }
+
+      console.log('📤 Creating Jira issue with payload:', JSON.stringify(requestBody, null, 2));
+
       const response = await this.makeRequest<any>('/issue', {
         method: 'POST',
         headers: {
@@ -472,6 +594,16 @@ class JiraClient {
         },
         body: JSON.stringify(requestBody),
       });
+
+      console.log('✅ Successfully created Jira issue:', response);
+
+      // If sprint wasn't set during creation, skip trying the endpoint (known issues)
+      // The sprint endpoint often returns 405 or 404, so we rely on setting it during creation
+      if (sprintWasSetDuringCreation) {
+        console.log(`✅ Sprint was set during issue creation`);
+      } else if (sprintId) {
+        console.warn(`⚠️ Could not set sprint during creation. Issue created but may not be in sprint ${sprintId}`);
+      }
 
       return response;
     } catch (error) {
@@ -499,7 +631,8 @@ class JiraClient {
       }
 
       if (updates.description !== undefined) {
-        requestBody.fields.description = updates.description;
+        // Convert plain text to ADF format for Jira
+        requestBody.fields.description = textToADF(updates.description);
       }
 
       if (updates.epicKey) {

@@ -59,6 +59,10 @@ app.all('/api/jira/*', async (req, res) => {
     } else if (jiraPath.startsWith('/board/')) {
       // Get specific board info
       jiraPath = `/rest/agile/1.0${jiraPath}`;
+    } else if (jiraPath.startsWith('/sprint/')) {
+      // Sprint endpoints - use Agile API
+      // e.g., /sprint/123/issue becomes /rest/agile/1.0/sprint/123/issue
+      jiraPath = `/rest/agile/1.0${jiraPath}`;
     } else if (jiraPath.includes('/transitions')) {
       // Issue transitions endpoint - use REST API v3
       jiraPath = `/rest/api/3${jiraPath}`;

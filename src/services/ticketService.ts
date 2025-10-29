@@ -20,7 +20,6 @@ export interface TicketService {
   moveTicket: (ticketId: string, newStatus: TicketStatus) => Promise<Ticket>;
   assignTicket: (ticketId: string, assigneeId: string) => Promise<Ticket>;
   updateTicketPriority: (ticketId: string, priority: TicketPriority) => Promise<Ticket>;
-  syncEpicLabels: (boardId: string) => Promise<{ updated: number; errors: string[] }>;
 }
 
 /**
@@ -235,99 +234,12 @@ class MockTicketService implements TicketService {
     this.tickets[ticketIndex] = updatedTicket;
     return updatedTicket;
   }
-
-  /**
-   * Sync epic labels for all tickets on a board (mock implementation)
-   * In mock mode, simulates applying epic labels
-   */
-  async syncEpicLabels(_boardId: string): Promise<{ updated: number; errors: string[] }> {
-    await simulateApiDelay();
-    
-    let updated = 0;
-    const errors: string[] = [];
-    
-    // Group tickets by epic
-    const ticketsByEpic = new Map<string, any[]>();
-    
-    for (const ticket of this.tickets) {
-      if (ticket.epic) {
-        if (!ticketsByEpic.has(ticket.epic)) {
-          ticketsByEpic.set(ticket.epic, []);
-        }
-        ticketsByEpic.get(ticket.epic)!.push(ticket);
-      }
-    }
-
-    // In mock mode, simulate adding epic labels
-    for (const [epicKey, epicTickets] of ticketsByEpic) {
-      // Simulate epic having some labels
-      const epicLabels = ['epic-label-1', 'epic-label-2'];
-      
-      for (const ticket of epicTickets) {
-        try {
-          const currentLabels = ticket.labels || [];
-          const mergedLabels = [...new Set([...currentLabels, ...epicLabels])];
-          
-          if (mergedLabels.length > currentLabels.length) {
-            const ticketIndex = this.tickets.findIndex(t => t.id === ticket.id);
-            if (ticketIndex !== -1) {
-              this.tickets[ticketIndex] = {
-                ...this.tickets[ticketIndex],
-                labels: mergedLabels,
-              };
-              updated++;
-            }
-          }
-        } catch (error) {
-          const errorMsg = `Failed to update ${ticket.key}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          errors.push(errorMsg);
-        }
-      }
-    }
-
-    return { updated, errors };
-  }
 }
 
 /**
  * API ticket service implementation (Jira integration)
  */
 class ApiTicketService implements TicketService {
-  /**
-   * Extract plain text from Jira's Atlassian Document Format (ADF)
-   */
-  private extractTextFromADF(adfContent: any): string {
-    if (!adfContent) return '';
-    
-    // If it's already a string, return it
-    if (typeof adfContent === 'string') return adfContent;
-    
-    // If it's an ADF document object, extract text recursively
-    if (typeof adfContent === 'object') {
-      let text = '';
-      
-      // Helper function to recursively extract text
-      const extractText = (node: any): string => {
-        if (!node) return '';
-        
-        if (node.type === 'text') {
-          return node.text || '';
-        }
-        
-        if (node.content && Array.isArray(node.content)) {
-          return node.content.map((child: any) => extractText(child)).join('');
-        }
-        
-        return '';
-      };
-      
-      text = extractText(adfContent);
-      return text.trim();
-    }
-    
-    return '';
-  }
-
   private async transformJiraIssueToTicket(jiraIssue: any): Promise<Ticket> {
     // Safely extract fields with fallbacks
     const fields = jiraIssue.fields || {};
@@ -336,7 +248,7 @@ class ApiTicketService implements TicketService {
       id: jiraIssue.id || jiraIssue.key || `unknown-${Date.now()}`,
       key: jiraIssue.key || 'UNKNOWN',
       title: fields.summary || 'Untitled',
-      description: this.extractTextFromADF(fields.description) || '',
+      description: fields.description || '',
       status: this.mapJiraStatusToTicketStatus(fields.status?.name),
       priority: this.mapJiraPriorityToTicketPriority(fields.priority?.name),
       assignee: fields.assignee ? {
@@ -362,20 +274,12 @@ class ApiTicketService implements TicketService {
     const statusMap: Record<string, TicketStatus> = {
       'To Do': 'TODO',
       'In Progress': 'IN_PROGRESS',
-      'In Progress QA': 'IN_PROGRESS',
       'Done': 'DONE',
       'Backlog': 'BACKLOG',
       'Review': 'REVIEW',
-      'Code Review': 'REVIEW',
       'In Review': 'REVIEW',
       'Testing': 'TESTING',
-      'In Testing': 'TESTING',
       'Blocked': 'BLOCKED',
-      'Awaiting Info': 'BLOCKED', // Jira's "Awaiting Info" maps to our "BLOCKED" status
-      'Ready for QA': 'TESTING',
-      'Ready for release': 'DONE',
-      'Pass': 'DONE',
-      'Fail': 'REVIEW',
     };
     return (jiraStatus && statusMap[jiraStatus]) || 'TODO';
   }
@@ -426,16 +330,61 @@ class ApiTicketService implements TicketService {
         throw new Error('Ticket title is required');
       }
 
-      // Get project key from environment
-      const projectKey = envConfig.jiraProjectKey || 'FW';
+      // Get project key - try from board first, then environment, then throw error
+      let projectKey: string | undefined;
       
-      // Create issue in Jira
+      // Try to get project key from board if boardId is available in ticket
+      // @ts-ignore - boardId may be in ticket for internal use
+      const boardId = ticket.boardId;
+      if (boardId) {
+        try {
+          const board = await jiraClient.getBoard(boardId);
+          projectKey = board.location?.projectKey;
+          console.log(`📋 Using project key from board: ${projectKey}`);
+        } catch (error) {
+          console.warn('Failed to get project from board, falling back to env:', error);
+        }
+      }
+      
+      // Fall back to environment config
+      if (!projectKey) {
+        projectKey = envConfig.jiraProjectKey;
+      }
+      
+      // Final validation - throw error if still no project key
+      if (!projectKey || projectKey === 'YOUR_PROJECT_KEY') {
+        throw new Error(
+          'Project key is required to create a ticket. ' +
+          'Please set VITE_JIRA_PROJECT_KEY in your environment variables, ' +
+          'or ensure the board has a valid project key.'
+        );
+      }
+      
+      // Try to get active sprint for the board if boardId is available
+      let sprintId: number | undefined;
+      if (boardId) {
+        try {
+          const activeSprint = await jiraClient.getActiveSprint(boardId);
+          if (activeSprint) {
+            sprintId = activeSprint.id;
+            console.log(`🏃 Using active sprint: ${activeSprint.id} (${activeSprint.name})`);
+          }
+        } catch (sprintError) {
+          console.warn('Could not get active sprint for board:', sprintError);
+        }
+      }
+      
+      console.log(`✅ Creating ticket with project key: ${projectKey}${sprintId ? ` and sprint: ${sprintId}` : ''}`);
+      
+      // Create issue in Jira (pass boardId to help with sprint addition if needed)
       const jiraIssue = await jiraClient.createIssue(
         projectKey,
         title,
         description || '',
         issueType || 'Task',
-        epic
+        epic,
+        sprintId,
+        boardId // Pass boardId for sprint endpoint
       );
 
       // Transform Jira issue to our Ticket format
@@ -484,10 +433,10 @@ class ApiTicketService implements TicketService {
         'TODO': 'To Do',
         'IN_PROGRESS': 'In Progress',
         'DONE': 'Done',
-        'BACKLOG': 'To Do', // Backlog typically maps to "To Do"
-        'REVIEW': 'Code Review',
-        'TESTING': 'In Testing',
-        'BLOCKED': 'Awaiting Info',
+        'BACKLOG': 'Backlog',
+        'REVIEW': 'Review',
+        'TESTING': 'Testing',
+        'BLOCKED': 'Blocked',
       };
       
       const jiraStatusName = statusMap[newStatus];
@@ -499,12 +448,6 @@ class ApiTicketService implements TicketService {
       return await this.getTicket(ticketId);
     } catch (error) {
       console.error('Failed to move ticket:', error);
-      
-      // Provide user-friendly error message
-      if (error instanceof Error && error.message.includes('No transition found')) {
-        throw new Error(`Cannot move ticket to "${newStatus}". This status may not be available in the current workflow. Please try a different status.`);
-      }
-      
       throw error;
     }
   }
@@ -517,77 +460,6 @@ class ApiTicketService implements TicketService {
   async updateTicketPriority(ticketId: string, priority: TicketPriority): Promise<Ticket> {
     console.warn('Update priority not yet implemented for Jira API');
     throw new Error('Updating ticket priority is not yet implemented in this Jira integration');
-  }
-
-  /**
-   * Sync epic labels for all tickets on a board
-   * Adds the epic's labels to each ticket that belongs to an epic
-   */
-  async syncEpicLabels(boardId: string): Promise<{ updated: number; errors: string[] }> {
-    try {
-      const { jiraClient } = await import('./jiraClient');
-      const tickets = await this.getTickets(boardId);
-      
-      const results = { updated: 0, errors: [] as string[] };
-      
-      // Group tickets by epic to fetch epic labels once per epic
-      const ticketsByEpic = new Map<string, any[]>();
-      
-      for (const ticket of tickets) {
-        if (ticket.epic) {
-          if (!ticketsByEpic.has(ticket.epic)) {
-            ticketsByEpic.set(ticket.epic, []);
-          }
-          ticketsByEpic.get(ticket.epic)!.push(ticket);
-        }
-      }
-
-      // Fetch epic labels for each epic and apply to tickets
-      for (const [epicKey, epicTickets] of ticketsByEpic) {
-        try {
-          // Get the epic's labels
-          const epicLabels = await jiraClient.getEpicLabels(epicKey);
-          
-          if (epicLabels.length === 0) {
-            console.log(`Epic ${epicKey} has no labels`);
-            continue;
-          }
-
-          // Apply epic labels to each ticket
-          for (const ticket of epicTickets) {
-            try {
-              const currentLabels = ticket.labels || [];
-              
-              // Merge epic labels with current labels (avoid duplicates)
-              const mergedLabels = [...new Set([...currentLabels, ...epicLabels])];
-              
-              // Only update if there are new labels
-              if (mergedLabels.length > currentLabels.length) {
-                await jiraClient.updateIssue(ticket.key, {
-                  labels: mergedLabels,
-                });
-                results.updated++;
-                console.log(`✅ Added ${mergedLabels.length - currentLabels.length} epic label(s) to ${ticket.key}`);
-              }
-            } catch (error) {
-              const errorMsg = `Failed to update ${ticket.key}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-              console.error(errorMsg);
-              results.errors.push(errorMsg);
-            }
-          }
-        } catch (error) {
-          const errorMsg = `Failed to fetch labels for epic ${epicKey}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          console.error(errorMsg);
-          results.errors.push(errorMsg);
-        }
-      }
-
-      console.log(`✅ Epic label sync complete: ${results.updated} tickets updated, ${results.errors.length} errors`);
-      return results;
-    } catch (error) {
-      console.error('Failed to sync epic labels:', error);
-      throw error;
-    }
   }
 }
 

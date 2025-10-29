@@ -352,14 +352,29 @@ export class NotificationService {
     if (!this.soundEnabled) return;
 
     try {
-      const audio = new Audio();
-      audio.src = this.getNotificationSound(type);
+      const soundUrl = this.getNotificationSound(type);
+      const audio = new Audio(soundUrl);
       audio.volume = 0.3;
+      
+      // Handle audio loading errors gracefully
+      audio.addEventListener('error', (e) => {
+        // Silently handle audio errors - file might not exist or format not supported
+        // Only log if it's not a NotSupportedError (format issue)
+        const error = e.target?.error;
+        if (error && error.code !== error.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+          console.warn(`Notification sound ${soundUrl} failed to load:`, error);
+        }
+      });
+      
       audio.play().catch(error => {
-        console.error('Failed to play notification sound:', error);
+        // Only log if user interaction is required or it's not a format issue
+        if (error.name !== 'NotAllowedError' && error.name !== 'NotSupportedError') {
+          console.warn('Failed to play notification sound:', error);
+        }
       });
     } catch (error) {
-      console.error('Error playing notification sound:', error);
+      // Silently handle errors - notification sounds are optional
+      console.warn('Error setting up notification sound:', error);
     }
   }
 

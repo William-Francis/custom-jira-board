@@ -391,6 +391,18 @@ export class KeyboardShortcutManager {
    * Get event key string
    */
   private getEventKey(event: KeyboardEvent): string {
+    // Handle edge case where event.key might be undefined
+    if (!event.key) {
+      // Fallback to keyCode or which if available, otherwise return empty string
+      // This can happen with certain input methods or synthetic events
+      const fallbackKey = (event as any).keyCode || (event as any).which;
+      if (fallbackKey) {
+        // Convert keyCode to key name for common keys (simplified fallback)
+        return String.fromCharCode(fallbackKey).toLowerCase();
+      }
+      return '';
+    }
+
     const modifiers: string[] = [];
     
     if (event.ctrlKey) modifiers.push('ctrl');

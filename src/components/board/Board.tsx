@@ -205,9 +205,12 @@ export const Board: React.FC<ExtendedBoardProps> = ({
         const { ticketService } = await import('../../services');
 
         // Create ticket with status and other fields
+        // Include boardId so we can get the project key from the board
         const ticketDataWithStatus = {
           ...ticketData,
           status: addTicketStatus!,
+          // @ts-ignore - boardId is used internally by ticketService to get project key
+          boardId: boardId,
         };
 
         const newTicket = await ticketService.createTicket(
