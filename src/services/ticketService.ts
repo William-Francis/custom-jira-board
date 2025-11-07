@@ -20,6 +20,7 @@ export interface TicketService {
   moveTicket: (ticketId: string, newStatus: TicketStatus) => Promise<Ticket>;
   assignTicket: (ticketId: string, assigneeId: string) => Promise<Ticket>;
   updateTicketPriority: (ticketId: string, priority: TicketPriority) => Promise<Ticket>;
+  syncEpicLabels: (boardId: string) => Promise<{ updated: number; errors: Array<{ ticketKey: string; error: string }> }>;
 }
 
 /**
@@ -233,6 +234,16 @@ class MockTicketService implements TicketService {
 
     this.tickets[ticketIndex] = updatedTicket;
     return updatedTicket;
+  }
+
+  /**
+   * Sync epic labels for all tickets
+   */
+  async syncEpicLabels(_boardId: string): Promise<{ updated: number; errors: Array<{ ticketKey: string; error: string }> }> {
+    await simulateApiDelay();
+    
+    console.log('Mock service: Epic label sync not supported');
+    return { updated: 0, errors: [] };
   }
 }
 
@@ -460,6 +471,79 @@ class ApiTicketService implements TicketService {
   async updateTicketPriority(ticketId: string, priority: TicketPriority): Promise<Ticket> {
     console.warn('Update priority not yet implemented for Jira API');
     throw new Error('Updating ticket priority is not yet implemented in this Jira integration');
+  }
+
+  /**
+   * Sync epic labels for all tickets on a board
+   * Fetches all tickets with epics, gets the epic's labels, and adds them to the ticket
+   */
+  async syncEpicLabels(boardId: string): Promise<{ updated: number; errors: Array<{ ticketKey: string; error: string }> }> {
+    const results = {
+      updated: 0,
+      errors: [] as Array<{ ticketKey: string; error: string }>,
+    };
+
+    try {
+      // Get all tickets from the board
+      const tickets = await this.getTickets(boardId);
+      
+      // Filter tickets that have an epic
+      const ticketsWithEpics = tickets.filter(ticket => ticket.epic);
+      
+      console.log(`Found ${ticketsWithEpics.length} tickets with epics to sync`);
+      
+      // Process each ticket
+      for (const ticket of ticketsWithEpics) {
+        try {
+          if (!ticket.epic) continue;
+          
+          // Get epic labels
+          const epicLabels = await jiraClient.getEpicLabels(ticket.epic);
+          
+          if (epicLabels.length === 0) {
+            console.log(`Epic ${ticket.epic} has no labels to sync`);
+            continue;
+          }
+          
+          // Get current ticket labels
+          const currentLabels = ticket.labels || [];
+          
+          // Check if ticket already has all epic labels
+          const newLabels = epicLabels.filter(label => !currentLabels.includes(label));
+          
+          if (newLabels.length === 0) {
+            console.log(`Ticket ${ticket.key} already has all epic labels`);
+            continue;
+          }
+          
+          // Add epic labels to ticket
+          const updatedLabels = [...new Set([...currentLabels, ...epicLabels])];
+          
+          // Update the ticket in Jira
+          await jiraClient.updateIssue(ticket.key, {
+            labels: updatedLabels,
+          });
+          
+          console.log(`✅ Updated ${ticket.key} with epic labels from ${ticket.epic}: ${newLabels.join(', ')}`);
+          results.updated++;
+          
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`Failed to sync epic labels for ticket ${ticket.key}:`, error);
+          results.errors.push({
+            ticketKey: ticket.key,
+            error: errorMessage,
+          });
+        }
+      }
+      
+      console.log(`Epic label sync complete: ${results.updated} tickets updated, ${results.errors.length} errors`);
+      return results;
+      
+    } catch (error) {
+      console.error('Failed to sync epic labels:', error);
+      throw error;
+    }
   }
 }
 

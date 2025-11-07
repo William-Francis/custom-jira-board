@@ -16,7 +16,7 @@ export interface UseTicketsReturn {
   loading: LoadingState;
   updateTicket: (ticket: Ticket) => Promise<void>;
   moveTicket: (ticketId: string, newStatus: TicketStatus) => Promise<void>;
-  refreshTickets: () => Promise<void>;
+  refreshTickets: (showLoading?: boolean) => Promise<void>;
   createTicket: (ticket: Partial<Ticket>) => Promise<Ticket>;
   deleteTicket: (ticketId: string) => Promise<void>;
   searchTickets: (query: string) => Promise<Ticket[]>;
@@ -179,8 +179,9 @@ export const useTickets = (config: UseTicketsConfig): UseTicketsReturn => {
 
   /**
    * Refresh tickets manually
+   * Set showLoading to false to avoid UI blocking during background refreshes
    */
-  const refreshTickets = useCallback(() => fetchTickets(true), [fetchTickets]);
+  const refreshTickets = useCallback((showLoading = false) => fetchTickets(showLoading), [fetchTickets]);
 
   /**
    * Initial load and auto-refresh setup

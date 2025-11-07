@@ -140,10 +140,29 @@ export const Board: React.FC<ExtendedBoardProps> = ({
 
         console.log('✅ Ticket updated successfully');
 
-        // Close modal and refresh
+        // Close modal immediately for better UX
         setIsEditTicketModalOpen(false);
         setEditTicket(null);
-        await refreshTickets();
+
+        // Refresh tickets in the background (non-blocking, no loading spinner)
+        setTimeout(async () => {
+          try {
+            await refreshTickets(false); // Pass false to avoid loading spinner
+          } catch (refreshError) {
+            console.warn(
+              'Failed to refresh tickets after update:',
+              refreshError
+            );
+            // Retry once after longer delay
+            setTimeout(async () => {
+              try {
+                await refreshTickets(false);
+              } catch (retryError) {
+                console.error('Retry refresh also failed:', retryError);
+              }
+            }, 2000);
+          }
+        }, 500);
       } catch (error) {
         errorHandler.addError(error as Error, {
           component: 'Board',
@@ -219,11 +238,29 @@ export const Board: React.FC<ExtendedBoardProps> = ({
 
         console.log('✅ Ticket created successfully:', newTicket);
 
-        // Close modal after successful submission
+        // Close modal immediately for better UX
         setIsAddTicketModalOpen(false);
 
-        // Refresh tickets to show the new one
-        await refreshTickets();
+        // Refresh tickets in the background (without blocking or showing loading spinner)
+        // Use a small delay to ensure Jira has processed the ticket
+        setTimeout(async () => {
+          try {
+            await refreshTickets(false); // Pass false to avoid loading spinner
+          } catch (refreshError) {
+            console.warn(
+              'Failed to refresh tickets after creation:',
+              refreshError
+            );
+            // If refresh fails, try again after a longer delay
+            setTimeout(async () => {
+              try {
+                await refreshTickets(false);
+              } catch (retryError) {
+                console.error('Retry refresh also failed:', retryError);
+              }
+            }, 2000);
+          }
+        }, 500); // Small delay to let Jira process the ticket
 
         // Call parent handler
         onTicketAdd?.(addTicketStatus!);
@@ -259,7 +296,7 @@ export const Board: React.FC<ExtendedBoardProps> = ({
    */
   const handleRefresh = useCallback(async () => {
     try {
-      await refreshTickets();
+      await refreshTickets(true); // Show loading spinner for manual refresh
     } catch (error) {
       errorHandler.addError(error as Error, {
         component: 'Board',
